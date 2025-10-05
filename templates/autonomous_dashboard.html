@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autonomous GPU Cluster Simulator - Data Center View</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
+            min-height: 100vh;
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            padding: 30px;
+            border-radius: 20px;
+            margin-bottom: 30px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            color: #ccc;
+        }
+
+        .simulation-info {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .info-item {
+            text-align: center;
+        }
+
+        .info-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #00d4ff;
+            margin-bottom: 5px;
+        }
+
+        .info-label {
+            color: #ccc;
+            font-size: 0.9em;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            padding: 25px;
+            border-radius: 15px;
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #00d4ff, #0099cc);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: #00d4ff;
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #00d4ff;
+            margin-bottom: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .stat-label {
+            color: #ccc;
+            font-weight: 500;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+
+        .panel:hover {
+            transform: translateY(-5px);
+        }
+
+        .panel h2 {
+            color: #fff;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            border-bottom: 3px solid #00d4ff;
+            padding-bottom: 10px;
+        }
+
+        .datacenter-view {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .datacenter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .gpu-rack {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid #333;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .gpu-rack::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(0, 212, 255, 0.1) 0%, rgba(0, 153, 204, 0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .gpu-rack:hover::before {
+            opacity: 1;
+        }
+
+        .gpu-rack.online {
+            border-color: #28a745;
+            box-shadow: 0 0 20px rgba(40, 167, 69, 0.3);
+        }
+
+        .gpu-rack.busy {
+            border-color: #ffc107;
+            box-shadow: 0 0 20px rgba(255, 193, 7, 0.3);
+            animation: pulse-busy 2s infinite;
+        }
+
+        .gpu-rack.failed {
+            border-color: #dc3545;
+            box-shadow: 0 0 20px rgba(220, 53, 69, 0.3);
+            animation: pulse-failed 2s infinite;
+        }
+
+        @keyframes pulse-busy {
+            0%, 100% { box-shadow: 0 0 20px rgba(255, 193, 7, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(255, 193, 7, 0.5); }
+        }
+
+        @keyframes pulse-failed {
+            0%, 100% { box-shadow: 0 0 20px rgba(220, 53, 69, 0.3); }
+            50% { box-shadow: 0 0 30px rgba(220, 53, 69, 0.5); }
+        }
+
+        .rack-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .rack-name {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .rack-status {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .rack-status.online {
+            background: #28a745;
+            color: white;
+        }
+
+        .rack-status.busy {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .rack-status.failed {
+            background: #dc3545;
+            color: white;
+        }
+
+        .rack-info {
+            font-size: 0.9em;
+            color: #ccc;
+            margin-bottom: 10px;
+        }
+
+        .job-progress {
+            margin-top: 15px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #333;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00d4ff, #0099cc);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .activity-log {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #333;
+        }
+
+        .log-entry {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 8px;
+            font-size: 0.9em;
+            border-left: 4px solid #00d4ff;
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .log-entry.job-completed {
+            border-left-color: #28a745;
+            background: rgba(40, 167, 69, 0.1);
+        }
+
+        .log-entry.job-failed {
+            border-left-color: #dc3545;
+            background: rgba(220, 53, 69, 0.1);
+        }
+
+        .log-entry.worker-failed {
+            border-left-color: #ffc107;
+            background: rgba(255, 193, 7, 0.1);
+        }
+
+        .log-entry.worker-recovered {
+            border-left-color: #17a2b8;
+            background: rgba(23, 162, 184, 0.1);
+        }
+
+        .system-flow {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .flow-node {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 25px;
+            border-radius: 25px;
+            text-align: center;
+            border: 3px solid #333;
+            transition: all 0.3s ease;
+            position: relative;
+            color: #fff;
+        }
+
+        .flow-node.active {
+            border-color: #00d4ff;
+            background: rgba(0, 212, 255, 0.2);
+            animation: glow 2s infinite;
+        }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3); }
+            50% { box-shadow: 0 4px 25px rgba(0, 212, 255, 0.3); }
+        }
+
+        .flow-arrow {
+            font-size: 2em;
+            color: #00d4ff;
+            animation: pulse 2s infinite;
+        }
+
+        .job-queue {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .job-card {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 10px;
+            border-left: 4px solid #00d4ff;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+        }
+
+        .job-card.status-pending { border-left-color: #17a2b8; }
+        .job-card.status-running { border-left-color: #007bff; }
+        .job-card.status-completed { border-left-color: #28a745; }
+        .job-card.status-failed { border-left-color: #dc3545; }
+
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .job-id {
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .job-type {
+            background: #00d4ff;
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+
+        .job-info {
+            color: #ccc;
+            font-size: 0.8em;
+        }
+
+        .gpu-visual {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+
+        .gpu-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .gpu-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .gpu-name {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .gpu-usage {
+            font-size: 1em;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        .gpu-progress {
+            margin: 10px 0;
+        }
+
+        .gpu-progress-bar {
+            width: 100%;
+            height: 10px;
+            background: #333;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+
+        .gpu-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #ffc107, #dc3545);
+            border-radius: 5px;
+            transition: width 0.5s ease;
+        }
+
+        .gpu-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 10px;
+            font-size: 0.8em;
+            color: #ccc;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .datacenter-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .flow-diagram {
+                flex-direction: column;
+            }
+            
+            .flow-arrow {
+                transform: rotate(90deg);
+            }
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #00d4ff;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0099cc;
+        }
+
+        /* Job Rate Controls */
+        .job-rate-controls {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .control-group {
+            text-align: center;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 1.1em;
+            margin-bottom: 15px;
+            color: #00d4ff;
+            font-weight: 600;
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        #job-rate-slider {
+            width: 300px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        #job-rate-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+
+        #job-rate-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+        }
+
+        #job-rate-display {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #00d4ff;
+            min-width: 60px;
+            text-align: center;
+            transition: all 0.15s ease;
+            display: inline-block;
+        }
+
+        .unit {
+            color: #ccc;
+            font-size: 0.9em;
+        }
+
+        .rate-presets {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .preset-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+        }
+
+        .preset-btn:hover {
+            background: rgba(0, 212, 255, 0.2);
+            border-color: #00d4ff;
+            transform: translateY(-2px);
+        }
+
+        .preset-btn.active {
+            background: linear-gradient(45deg, #00d4ff, #0099cc);
+            border-color: #00d4ff;
+        }
+
+        @media (max-width: 768px) {
+            .slider-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            #job-rate-slider {
+                width: 250px;
+            }
+            
+            .rate-presets {
+                gap: 8px;
+            }
+            
+            .preset-btn {
+                padding: 6px 12px;
+                font-size: 0.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1> Autonomous GPU Cluster Simulator</h1>
+            <p>Real-World Data Center Behavior Simulation</p>
+            
+            <!-- Job Rate Controls -->
+            <div class="job-rate-controls">
+                <div class="control-group">
+                    <label for="job-rate-slider">Job Generation Rate:</label>
+                    <div class="slider-container">
+                        <input type="range" id="job-rate-slider" min="0.1" max="50" step="0.1" value="2.0">
+                        <span id="job-rate-display">2.0</span>
+                        <span class="unit">jobs/min</span>
+                    </div>
+                    <div class="rate-presets">
+                        <button class="preset-btn" data-rate="0.5">Light Load</button>
+                        <button class="preset-btn" data-rate="2.0">Normal</button>
+                        <button class="preset-btn" data-rate="10.0">High Load</button>
+                        <button class="preset-btn" data-rate="25.0">Extreme</button>
+                        <button class="preset-btn" data-rate="50.0">MAXIMUM</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Simulation Info -->
+        <div class="simulation-info">
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-value" id="uptime">00:00:00</div>
+                    <div class="info-label">Simulation Uptime</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-value" id="failure-rate">10%</div>
+                    <div class="info-label">Failure Rate/Hour</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-value" id="recovery-time">30s</div>
+                    <div class="info-label">Recovery Time</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="total-jobs">0</div>
+                <div class="stat-label">Total Jobs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="completed-jobs">0</div>
+                <div class="stat-label">Completed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="failed-jobs">0</div>
+                <div class="stat-label">Failed</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="worker-failures">0</div>
+                <div class="stat-label">Worker Failures</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="worker-recoveries">0</div>
+                <div class="stat-label">Recoveries</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="active-workers">0</div>
+                <div class="stat-label">Active Workers</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="queue-size">0</div>
+                <div class="stat-label">Queue Size</div>
+            </div>
+        </div>
+
+        <!-- System Flow -->
+        <div class="system-flow">
+            <h2> Data Center Flow</h2>
+            <div class="flow-diagram">
+                <div class="flow-node" id="job-queue-node">
+                    <div> Auto Job Generation</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node" id="scheduler-node">
+                    <div> Load Balancer</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node" id="workers-node">
+                    <div> GPU Racks</div>
+                </div>
+                <div class="flow-arrow">→</div>
+                <div class="flow-node" id="results-node">
+                    <div> Results & Recovery</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Left Panel: Data Center View -->
+            <div class="panel">
+                <h2> GPU Data Center Racks</h2>
+                <div class="datacenter-view">
+                    <div class="datacenter-grid" id="datacenter-grid">
+                        <!-- GPU racks will be populated here -->
+                    </div>
+                </div>
+                
+                <h2> Activity Log</h2>
+                <div class="activity-log" id="activity-log">
+                    <!-- Activity log will be populated here -->
+                </div>
+            </div>
+
+            <!-- Right Panel: Job Queue & GPU Info -->
+            <div class="panel">
+                <h2> Job Queue & GPU Resources</h2>
+                <div class="job-queue" id="job-queue">
+                    <!-- Job queue will be populated here -->
+                </div>
+                
+                <div class="gpu-visual" id="gpu-info">
+                    <!-- GPU info will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let activityLog = [];
+        let lastUpdate = Date.now();
+
+        // Initialize dashboard
+        socket.on('connect', function() {
+            console.log('Connected to autonomous simulator');
+            socket.emit('request_update');
+        });
+
+        socket.on('status_update', function(data) {
+            updateDashboard(data);
+            updateActivityLog(data);
+        });
+
+        // Job Rate Controls
+        const jobRateSlider = document.getElementById('job-rate-slider');
+        const jobRateDisplay = document.getElementById('job-rate-display');
+        const presetButtons = document.querySelectorAll('.preset-btn');
+
+        // Update display when slider changes
+    jobRateSlider.addEventListener('input', function() {
+        const rate = parseFloat(this.value);
+        jobRateDisplay.textContent = rate.toFixed(1);
+        updatePresetButtons(rate);
+        
+        // Smooth visual feedback
+        jobRateDisplay.style.transform = 'scale(1.1)';
+        jobRateDisplay.style.color = '#00ff88';
+        setTimeout(() => {
+            jobRateDisplay.style.transform = 'scale(1)';
+            jobRateDisplay.style.color = '#00d4ff';
+        }, 150);
+    });
+
+        // Send rate update to server
+        jobRateSlider.addEventListener('change', function() {
+            const rate = parseFloat(this.value);
+            updateJobRate(rate);
+        });
+
+        // Preset button handlers
+        presetButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const rate = parseFloat(this.dataset.rate);
+                jobRateSlider.value = rate;
+                jobRateDisplay.textContent = rate.toFixed(1);
+                updatePresetButtons(rate);
+                updateJobRate(rate);
+            });
+        });
+
+        function updateJobRate(rate) {
+            fetch('/api/update-job-rate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ rate: rate })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log(`Job rate updated to ${data.new_rate} jobs/minute`);
+                    // Add visual feedback
+                    jobRateDisplay.style.color = '#00ff88';
+                    setTimeout(() => {
+                        jobRateDisplay.style.color = '#00d4ff';
+                    }, 1000);
+                } else {
+                    console.error('Failed to update job rate:', data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error updating job rate:', error);
+            });
+        }
+
+        function updatePresetButtons(currentRate) {
+            presetButtons.forEach(button => {
+                button.classList.remove('active');
+                const buttonRate = parseFloat(button.dataset.rate);
+                if (Math.abs(buttonRate - currentRate) < 0.1) {
+                    button.classList.add('active');
+                }
+            });
+        }
+
+        function updateDashboard(data) {
+            // Update simulation info
+            updateUptime(data.simulation_info.uptime);
+            
+            // Update statistics with animation
+            animateValue('total-jobs', data.stats.total_jobs);
+            animateValue('completed-jobs', data.stats.completed_jobs);
+            animateValue('failed-jobs', data.stats.failed_jobs);
+            animateValue('worker-failures', data.stats.worker_failures);
+            animateValue('worker-recoveries', data.stats.worker_recoveries);
+            animateValue('active-workers', data.stats.active_workers);
+            animateValue('queue-size', data.job_queue.length);
+
+            // Update datacenter view
+            updateDatacenterView(data.workers);
+
+            // Update job queue
+            updateJobQueue(data.job_queue, data.jobs);
+
+            // Update GPU info
+            updateGPUInfo(data.gpu_info);
+
+            // Update system flow
+            updateSystemFlow(data);
+        }
+
+        function updateUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            document.getElementById('uptime').textContent = 
+                `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function animateValue(elementId, targetValue) {
+            const element = document.getElementById(elementId);
+            const currentValue = parseInt(element.textContent) || 0;
+            const increment = (targetValue - currentValue) / 5;  // Faster animation
+            
+            if (Math.abs(targetValue - currentValue) > 0.1) {
+                const newValue = currentValue + increment;
+                element.textContent = Math.round(newValue);
+                setTimeout(() => animateValue(elementId, targetValue), 30);  // Faster updates
+            } else {
+                element.textContent = targetValue;
+            }
+        }
+
+        function updateDatacenterView(workers) {
+            const container = document.getElementById('datacenter-grid');
+            container.innerHTML = '';
+
+            Object.values(workers).forEach(worker => {
+                const rack = document.createElement('div');
+                rack.className = `gpu-rack ${worker.status}`;
+                
+                let jobProgress = '';
+                if (worker.current_job) {
+                    const job = worker.current_job;
+                    const duration = job.parameters?.duration || 5;
+                    const elapsed = job.started_at ? 
+                        (Date.now() - new Date(job.started_at).getTime()) / 1000 : 0;
+                    const progress = Math.min((elapsed / duration) * 100, 100);
+                    
+                    jobProgress = `
+                        <div class="job-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            <div class="rack-info">
+                                <strong>Executing:</strong> ${job.job_id}<br>
+                                <strong>Type:</strong> ${job.job_type} | <strong>Progress:</strong> ${Math.round(progress)}%
+                            </div>
+                        </div>
+                    `;
+                }
+
+                const statusIcon = {
+                    'online': '',
+                    'busy': '',
+                    'failed': ''
+                }[worker.status] || '';
+
+                rack.innerHTML = `
+                    <div class="rack-header">
+                        <div class="rack-name">${statusIcon} ${worker.worker_id}</div>
+                        <div class="rack-status ${worker.status}">${worker.status}</div>
+                    </div>
+                    <div class="rack-info">
+                        <strong>Failure Rate:</strong> ${(worker.failure_probability * 100).toFixed(1)}%/min<br>
+                        <strong>Available:</strong> ${worker.is_available ? ' Yes' : ' No'}<br>
+                        <strong>Last Heartbeat:</strong> ${new Date(worker.last_heartbeat).toLocaleTimeString()}<br>
+                        ${worker.current_job ? 
+                            `<strong>Current Job:</strong> ${worker.current_job.job_id}<br>
+                             <strong>Priority:</strong> ${worker.current_job.priority}` : 
+                            '<strong>Status:</strong> Idle and ready'
+                        }
+                    </div>
+                    ${jobProgress}
+                `;
+                container.appendChild(rack);
+            });
+        }
+
+        function updateJobQueue(queue, allJobs) {
+            const container = document.getElementById('job-queue');
+            
+            // Show recent jobs (last 15)
+            const recentJobs = Object.values(allJobs).slice(-15).reverse();
+            
+            if (recentJobs.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon"></div>
+                        <p>No jobs yet. Simulation starting...</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = '';
+
+            recentJobs.forEach(job => {
+                const jobCard = document.createElement('div');
+                jobCard.className = `job-card status-${job.status}`;
+                
+                const statusIcon = {
+                    'pending': '',
+                    'running': '',
+                    'completed': '',
+                    'failed': ''
+                }[job.status] || '';
+
+                const priorityColor = {
+                    'LOW': '',
+                    'NORMAL': '',
+                    'HIGH': '',
+                    'CRITICAL': ''
+                }[job.priority] || '';
+
+                jobCard.innerHTML = `
+                    <div class="job-header">
+                        <div class="job-id">${statusIcon} ${job.job_id}</div>
+                        <div class="job-type">${job.job_type}</div>
+                    </div>
+                    <div class="job-info">
+                        <strong>Priority:</strong> ${priorityColor} ${job.priority}<br>
+                        <strong>Worker:</strong> ${job.worker_id || 'N/A'}<br>
+                        <strong>Time:</strong> ${new Date(job.created_at).toLocaleTimeString()}<br>
+                        ${job.duration ? `<strong>Duration:</strong> ${job.duration.toFixed(2)}s<br>` : ''}
+                        ${job.result ? `<strong>Result:</strong> ${job.result}<br>` : ''}
+                        ${job.error_message ? `<strong>Error:</strong> ${job.error_message}<br>` : ''}
+                    </div>
+                `;
+                container.appendChild(jobCard);
+            });
+        }
+
+        function updateGPUInfo(gpuInfo) {
+            const container = document.getElementById('gpu-info');
+            
+            container.innerHTML = `
+                <div class="gpu-card">
+                    <div class="gpu-header">
+                        <div class="gpu-name"> System Overview</div>
+                        <div class="gpu-usage">${(gpuInfo.memory_usage_percent * 100).toFixed(1)}% Used</div>
+                    </div>
+                    <div class="gpu-progress">
+                        <div class="gpu-progress-bar">
+                            <div class="gpu-progress-fill" style="width: ${gpuInfo.memory_usage_percent * 100}%"></div>
+                        </div>
+                    </div>
+                    <div class="gpu-stats">
+                        <div><strong>Total GPUs:</strong> ${gpuInfo.total_gpus}</div>
+                        <div><strong>Available:</strong> ${gpuInfo.available_gpus}</div>
+                        <div><strong>Utilization:</strong> ${gpuInfo.avg_utilization.toFixed(1)}%</div>
+                        <div><strong>Temperature:</strong> ${gpuInfo.avg_temperature.toFixed(1)}°C</div>
+                        <div><strong>Memory:</strong> ${(gpuInfo.used_memory / (1024**3)).toFixed(1)}GB / ${(gpuInfo.total_memory / (1024**3)).toFixed(1)}GB</div>
+                        <div><strong>NVML:</strong> ${gpuInfo.nvml_available ? ' Available' : ' Simulated'}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateSystemFlow(data) {
+            const queueNode = document.getElementById('job-queue-node');
+            const schedulerNode = document.getElementById('scheduler-node');
+            const workersNode = document.getElementById('workers-node');
+            const resultsNode = document.getElementById('results-node');
+
+            // Update flow based on system state
+            queueNode.classList.toggle('active', data.job_queue.length > 0 || data.stats.total_jobs > 0);
+            schedulerNode.classList.toggle('active', data.job_queue.length > 0);
+            workersNode.classList.toggle('active', Object.values(data.workers).some(w => w.status === 'busy'));
+            resultsNode.classList.toggle('active', data.stats.completed_jobs > 0 || data.stats.failed_jobs > 0);
+        }
+
+        function updateActivityLog(data) {
+            const container = document.getElementById('activity-log');
+            const now = Date.now();
+            
+            // Add new activity entries
+            if (data.stats.completed_jobs > (window.lastCompletedJobs || 0)) {
+                addLogEntry('job-completed', ` Job completed successfully (${data.stats.completed_jobs} total)`);
+                window.lastCompletedJobs = data.stats.completed_jobs;
+            }
+            
+            if (data.stats.failed_jobs > (window.lastFailedJobs || 0)) {
+                addLogEntry('job-failed', ` Job failed (${data.stats.failed_jobs} total)`);
+                window.lastFailedJobs = data.stats.failed_jobs;
+            }
+            
+            if (data.stats.worker_failures > (window.lastWorkerFailures || 0)) {
+                addLogEntry('worker-failed', ` Worker failure detected!`);
+                window.lastWorkerFailures = data.stats.worker_failures;
+            }
+            
+            if (data.stats.worker_recoveries > (window.lastWorkerRecoveries || 0)) {
+                addLogEntry('worker-recovered', ` Worker recovered and back online!`);
+                window.lastWorkerRecoveries = data.stats.worker_recoveries;
+            }
+            
+            // Keep only last 20 entries
+            if (activityLog.length > 20) {
+                activityLog = activityLog.slice(-20);
+            }
+            
+            // Update display
+            container.innerHTML = activityLog.map(entry => 
+                `<div class="log-entry ${entry.type}">${entry.message}</div>`
+            ).join('');
+            
+            // Auto-scroll to bottom
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function addLogEntry(type, message) {
+            const timestamp = new Date().toLocaleTimeString();
+            activityLog.push({
+                type: type,
+                message: `[${timestamp}] ${message}`
+            });
+        }
+
+        // Request updates every 500ms for smooth experience
+        setInterval(() => {
+            socket.emit('request_update');
+        }, 500);
+    </script>
+</body>
+</html>
